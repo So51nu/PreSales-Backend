@@ -315,6 +315,7 @@ from .utils import _project_ids_for_user
 from decimal import Decimal, InvalidOperation
 from django.db.models import OuterRef, Subquery
 from django.db.models.functions import Coalesce
+from accounts.models import ProjectUserAccess
 class SalesLeadViewSet(viewsets.ModelViewSet):
     queryset = SalesLead.objects.select_related(
         "project", "status", "sub_status", "current_owner", "channel_partner"
@@ -323,7 +324,19 @@ class SalesLeadViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticatedAndActive]
 
     # ----------------- BASE QUERYSET + FILTERS -----------------
-   
+    
+    def _managed_user_ids(self,manager, project_ids):
+        """
+        Return list of user IDs who are assigned under this manager
+        for given projects.
+        """
+        return list(
+            ProjectUserAccess.objects.filter(
+                manager=manager,
+                project_id__in=project_ids,
+                is_active=True,
+            ).values_list("user_id", flat=True)
+        )
     def get_queryset(self):
         user = self.request.user
         project_ids = _project_ids_for_user(user)
@@ -361,17 +374,43 @@ class SalesLeadViewSet(viewsets.ModelViewSet):
         # ⚠️ Sirf LIST ke time restrict karna hai
         if action == "list":
             if role == "ADMIN" or user.is_staff:
-                # Admin / staff => sab dekh sakte within unke projects
+                # Admin → all leads in project scope
                 pass
+
+            # elif role == "MANAGER":
+            #     managed_user_ids = self._managed_user_ids(user, project_ids)
+
+            #     if managed_user_ids:
+            #         qs = qs.filter(
+            #             dj_models.Q(assign_to_id__in=managed_user_ids)
+            #             | dj_models.Q(current_owner_id__in=managed_user_ids)
+            #         )
+            #     else:
+            #         qs = qs.none()
+
+            elif role == "MANAGER":
+                managed_user_ids = self._managed_user_ids(user, project_ids)
+
+                # ❗ STRICT RULE:
+                # Manager will see leads ONLY IF sales users are mapped to him
+                if not managed_user_ids:
+                    return qs.none()
+
+                qs = qs.filter(assign_to_id__in=managed_user_ids)
+
+
+
             elif role == "SALES":
-                # SALES => sirf jaha assign_to = user (LIST me)
+                # Sales → sirf apne assigned leads
                 qs = qs.filter(assign_to_id=user.id)
+
             else:
-                # Others (e.g. RECEPTION) => jaha owner ya assign_to ho
+                # Reception / others
                 qs = qs.filter(
                     dj_models.Q(current_owner=user)
                     | dj_models.Q(assign_to=user)
                 )
+
         # ⚠️ retrieve / detail, update, custom actions, etc. ke liye
         # yaha koi extra role filter nahi lagega, sirf project scope ka filter
         # (project_id__in=project_ids) upper already laga hua hai.

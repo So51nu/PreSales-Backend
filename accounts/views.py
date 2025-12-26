@@ -290,3 +290,66 @@ class RegisterUserWithProjectAccessView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+# accounts/views.py (BOTTOM में add करो)
+
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from .models import ProjectUserAccess
+
+
+class ProjectUserAccessUpsertAPIView(APIView):
+    """
+    POST /api/accounts/project-user-access/
+
+    Body:
+    {
+      "user": 10,
+      "project_ids": [1,2],
+      "manager": 5,
+      "can_view": true,
+      "can_edit": false
+    }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user_id = request.data.get("user")
+        project_ids = request.data.get("project_ids", [])
+        manager_id = request.data.get("manager")
+        can_view = request.data.get("can_view", True)
+        can_edit = request.data.get("can_edit", False)
+
+        if not user_id or not project_ids:
+            return Response(
+                {"detail": "user and project_ids are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # delete old mappings
+        ProjectUserAccess.objects.filter(user_id=user_id).delete()
+
+        # create new mappings
+        objs = []
+        for pid in project_ids:
+            objs.append(
+                ProjectUserAccess(
+                    user_id=user_id,
+                    project_id=pid,
+                    manager_id=manager_id,
+                    can_view=can_view,
+                    can_edit=can_edit,
+                    is_active=True,
+                )
+            )
+
+        ProjectUserAccess.objects.bulk_create(objs)
+
+        return Response(
+            {"detail": "Project user access updated successfully"},
+            status=status.HTTP_200_OK,
+        )

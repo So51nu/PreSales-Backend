@@ -4,7 +4,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 import string
 import random
-
+from django.conf import settings
+from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from datetime import timedelta
 
@@ -54,7 +55,7 @@ class User(AbstractUser):
         default=Role.SALES,
         help_text="Business role",
     )
-
+    
     admin = models.ForeignKey(
         "self",
         null=True,
@@ -223,6 +224,14 @@ class ProjectUserAccess(models.Model):
         Project,
         on_delete=models.CASCADE,
         related_name="user_accesses",
+    )
+    manager = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="managed_project_accesses",
+        limit_choices_to={"role": "MANAGER"},
     )
 
     # future ke liye flags (optional)

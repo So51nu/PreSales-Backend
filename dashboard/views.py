@@ -2,7 +2,7 @@
 
 import logging
 from datetime import timedelta
-
+from accounts.models import ProjectUserAccess
 from django.db.models import Count, Sum, Avg, Max, Q
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -51,10 +51,37 @@ def get_role_code(user):
     return getattr(role, "code", None)
 
 
+# def get_effective_admin(user):
+#     """
+#     ADMIN        → self
+#     FULL_CONTROL → linked admin
+#     SALES/OTHER  → linked admin
+#     STAFF        → None (means no filtering)
+#     """
+#     if not user or not user.is_authenticated:
+#         return None
+
+#     if user.is_staff:
+#         return None
+
+#     role_code = get_role_code(user)
+
+#     if role_code == "ADMIN":
+#         return user
+
+#     if role_code == "FULL_CONTROL":
+#         return getattr(user, "admin", None)
+    
+#     if role_code=="MANAGER":
+#         return getattr(user,"MANAGER",None)
+
+#     return getattr(user, "admin", None)
+
 def get_effective_admin(user):
     """
     ADMIN        → self
     FULL_CONTROL → linked admin
+    MANAGER      → linked admin
     SALES/OTHER  → linked admin
     STAFF        → None (means no filtering)
     """
@@ -69,15 +96,29 @@ def get_effective_admin(user):
     if role_code == "ADMIN":
         return user
 
-    if role_code == "FULL_CONTROL":
+    if role_code in ("FULL_CONTROL", "MANAGER"):
         return getattr(user, "admin", None)
 
     return getattr(user, "admin", None)
 
 
+# def is_admin_like(user):
+#     """
+#     ADMIN + FULL_CONTROL + staff
+#     Used ONLY for dashboard routing
+#     """
+#     if not user or not user.is_authenticated:
+#         return False
+
+#     if user.is_staff:
+#         return True
+
+#     role_code = get_role_code(user)
+#     return role_code in ("ADMIN", "FULL_CONTROL")
+
 def is_admin_like(user):
     """
-    ADMIN + FULL_CONTROL + staff
+    ADMIN + FULL_CONTROL + MANAGER + staff
     Used ONLY for dashboard routing
     """
     if not user or not user.is_authenticated:
@@ -87,7 +128,8 @@ def is_admin_like(user):
         return True
 
     role_code = get_role_code(user)
-    return role_code in ("ADMIN", "FULL_CONTROL")
+    return role_code in ("ADMIN", "FULL_CONTROL", "MANAGER")
+
 
 # =====================================================
 # Helper functions
@@ -144,14 +186,32 @@ def apply_date_filter_date(qs, field_name, from_date, to_date):
     if to_date:
         qs = qs.filter(**{f"{field_name}__lte": to_date})
     return qs
+# def get_user_projects(user):
+#     """
+#     FINAL, SAFE, NON-BREAKING logic
+#     Works for ADMIN and FULL_CONTROL equally
+#     """
+#     qs = Project.objects.all()
+
+#     # Staff sees everything
+#     if user.is_staff:
+#         return qs
+
+#     admin_user = get_effective_admin(user)
+
+#     if admin_user:
+#         return qs.filter(belongs_to=admin_user)
+
+#     return qs.none()
+
+
 def get_user_projects(user):
     """
-    FINAL, SAFE, NON-BREAKING logic
-    Works for ADMIN and FULL_CONTROL equally
+    FINAL logic:
+    ADMIN / FULL_CONTROL / MANAGER → projects of their admin
     """
     qs = Project.objects.all()
 
-    # Staff sees everything
     if user.is_staff:
         return qs
 
@@ -161,6 +221,7 @@ def get_user_projects(user):
         return qs.filter(belongs_to=admin_user)
 
     return qs.none()
+
 
 
 def get_filtered_project_ids(request, user):
@@ -299,6 +360,23 @@ def build_admin_dashboard(user, project_ids, from_date, to_date):
 
     # ---------------- Leads ----------------
     lead_qs = SalesLead.objects.filter(project_id__in=project_ids)
+
+    role_code = get_role_code(user)
+
+    if role_code == "MANAGER":
+        sales_ids = ProjectUserAccess.objects.filter(
+            manager=user,
+            is_active=True,
+            project_id__in=project_ids,
+        ).values_list("user_id", flat=True)
+
+        lead_qs = lead_qs.filter(
+            Q(current_owner_id__in=sales_ids) |
+            Q(created_by_id__in=sales_ids) |
+            Q(assign_to_id__in=sales_ids)
+        ).distinct()
+
+
     lead_period_qs = apply_date_filter_dt(lead_qs, "created_at", from_date, to_date)
 
     result["leads"]["new_leads"] = lead_period_qs.count()

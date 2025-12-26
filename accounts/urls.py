@@ -9,7 +9,7 @@ from .views import (
 UserViewSet,
     MyTokenObtainPairView,
     LoginOTPStartView,
-    LoginOTPVerifyView,
+    LoginOTPVerifyView,ProjectUserAccessUpsertAPIView
 )
 from .views import RegisterUserWithProjectAccessView
 
@@ -29,7 +29,9 @@ urlpatterns = [
         AssignableUsersByAdminAPIView.as_view(),
         name="assignable-users-by-project",
     ),
-  path("register-with-project/", RegisterUserWithProjectAccessView.as_view(), name="register-with-project"),
-  path("", include(router.urls)),
+    path("register-with-project/", RegisterUserWithProjectAccessView.as_view(), name="register-with-project"),
+    path("project-user-access/",ProjectUserAccessUpsertAPIView.as_view(),name="project-user-access",),
+    path("", include(router.urls)),
+
     
 ]
