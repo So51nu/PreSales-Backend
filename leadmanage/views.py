@@ -95,6 +95,7 @@ class LeadMastersAPIView(APIView):
                 "id": u.id,
                 "name": (u.get_full_name() or u.username).strip(),
                 "username": u.username,
+                "role":u.role,
             }
             for u in assign_qs
         ]
