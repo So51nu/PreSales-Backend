@@ -61,7 +61,7 @@ META_WEBHOOK_VERIFY_TOKEN = "koi-strong-secret-string"  # 👈 isko Meta app me 
 # ---------------- Google Sheets configuration (NEW) ----------------
 # Service account JSON ka path (BASE_DIR/keys/gsheets-service.json)
 GSHEETS_CREDENTIALS_FILE = BASE_DIR / "keys" / "gsheets-service.json"
-
+META_ACCESS_TOKEN = ""  # abhi blank bhi rakh sakte ho
 # Google Sheet ka ID (URL ke beech wala lamba string)
 # example: https://docs.google.com/spreadsheets/d/<YAHAN_ID>/edit#gid=0
 GSHEETS_SHEET_ID = "YOUR_GOOGLE_SHEETS_ID_HERE"

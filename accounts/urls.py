@@ -12,7 +12,7 @@ UserViewSet,
     LoginOTPVerifyView,ProjectUserAccessUpsertAPIView
 )
 from .views import RegisterUserWithProjectAccessView
-
+from .views_password_reset import DirectResetPasswordAPIView
 router = DefaultRouter()
 router.register(r"users", UserViewSet, basename="user")
 
@@ -21,6 +21,7 @@ router.register(r"users", UserViewSet, basename="user")
 urlpatterns = [
     path("register/", RegisterUserView.as_view(), name="register"),
     path("login/", MyTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("password/direct-reset/",DirectResetPasswordAPIView.as_view(),name="direct-password-reset",),
     path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("login/otp/start/", LoginOTPStartView.as_view(), name="login_otp_start"),
     path("login/otp/verify/", LoginOTPVerifyView.as_view(), name="login_otp_verify"),
